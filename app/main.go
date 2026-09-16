@@ -52,7 +52,7 @@ func main() {
 		},
 	}
 
-	appconfig, err := azureappconfiguration.Load(
+	appConfig, err := azureappconfiguration.Load(
 		ctx,
 		azureappconfiguration.AuthenticationOptions{
 			Endpoint:   endpoint,
@@ -64,8 +64,16 @@ func main() {
 		log.Fatalf("failed to load App Configuration: %v", err)
 	}
 
+	raw, err := appConfig.GetBytes(&azureappconfiguration.ConstructionOptions{
+		Separator: ":",
+	})
+	if err != nil {
+		log.Fatalf("failed to get raw config: %v", err)
+	}
+	fmt.Printf("RAW CONFIG: %s\n", string(raw))
+
 	var config Config
-	if err := appconfig.Unmarshal(
+	if err := appConfig.Unmarshal(
 		&config,
 		&azureappconfiguration.ConstructionOptions{
 			Separator: ":",
