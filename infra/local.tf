@@ -13,3 +13,7 @@ resource "time_static" "created" {}
 locals {
   date_suffix = formatdate("YYYYMMDD", time_static.created.rfc3339)
 }
+
+locals {
+  github_repository_name = "azure-containerapps-appconfig-lab"
+}
