@@ -1,119 +1,63 @@
-# Infrastructure Setup
+# インフラ
 
-## 前提
+このPoCのAzureリソースとGitHub ActionsのRepository Variablesは、`infra/` のTerraformで管理しています。アプリのイメージ更新はTerraformから切り離し、[デプロイ用ワークフロー](../.github/workflows/app-deploy.yaml)に任せます。
 
-このPoCでは以下を分離しています。
+## 何をどこで管理するか
 
-- Terraform: インフラ構築
-- 手動 / CI/CD: アプリケーションイメージのbuild・push
-- App Configuration: デプロイ対象のimage tag管理
-- Key Vault: Secret実値管理
+| 担当 | 管理するもの |
+| --- | --- |
+| Terraform | ACR、App Configuration、Key Vault、ACA、マネージドID、権限、GitHub Actionsの変数とOIDC連携 |
+| GitHub Actions | Goアプリのビルド、ACRへのpush、`app:imageTag` の更新、ACAの新しいイメージへの更新 |
+| Terraformの外 | Key Vault Secretの実値 |
 
-そのため、初回構築時は `terraform apply` 一発ではなく、段階的に作成します。
+ACAの実行用ID（`id-aca-runtime`）はACRからのpull、App ConfigurationとKey Vaultの読み取りに使います。デプロイ用ID（`id-github-app-deploy`）はGitHub ActionsがOIDCでAzureへログインするときに使います。
 
----
+## 初回構築の順番
 
-## 初回構築フロー
+最初はACRにアプリのイメージがないため、ACAを含めて一度に `terraform apply` することはできません。この順番で構築しました。
 
-### 1. 基盤リソースを作成
+1. TerraformでResource Group、ACR、App Configuration、Key Vault、マネージドID、Container Apps Environmentと必要な権限を部分適用する。
+2. Goアプリのイメージをビルドし、Gitの短いコミットSHAをタグにしてACRへpushする。
+3. TerraformでApp ConfigurationのキーとKey VaultのSecretを部分適用する。ACAはまだ作らない。
+4. App Configurationの `app:imageTag` にpushしたタグを設定し、Key Vault Secretに実値を設定する。
+5. `terraform apply` で残りを作成する。
 
-まず以下を作成します。
+ACAは実行用IDにACRの読み取り権限を付与してから作成します。`azurerm_container_app.main` の `depends_on` は、この順番をTerraformに伝えるためのものです。
 
-- Resource Group
-- ACR
-- App Configuration
-- Key Vault
-- UAMI
-- Container Apps Environment
-- Terraform実行者用RBAC
+## デプロイ後の確認
+
+`app/**` を `main` にpushすると、[アプリのワークフロー](../.github/workflows/app-deploy.yaml)がイメージのpush、App Configurationのタグ更新、ACA更新を順に実行します。手動実行もできます。
+
+PowerShellで次の値を比較できます。
 
 ```powershell
-terraform apply ...
-※ 実際に使用したtargetコマンドをここへ記載。
-2. アプリケーションイメージをACRへpush
-リポジトリルートで実行。
-$IMAGE_TAG = git rev-parse --short HEAD
-$ACR_LOGIN_SERVER = "acrappcofigpoc20260921.azurecr.io"
+az appconfig kv show `
+  --endpoint https://appcs-aca-appconfig-poc.azconfig.io `
+  --key app:imageTag --label dev --auth-mode login `
+  --query value -o tsv
 
-az acr login --name acrappcofigpoc20260921
+az containerapp show `
+  --name ca-appconfig-poc `
+  --resource-group rg-aca-appconfig-poc `
+  --query "{latest:properties.latestRevisionName,ready:properties.latestReadyRevisionName,image:properties.template.containers[0].image,host:properties.configuration.ingress.fqdn}" `
+  -o json
 
-docker build `
-  -t "$ACR_LOGIN_SERVER/aca-app:$IMAGE_TAG" `
-  ./app
-
-docker push "$ACR_LOGIN_SERVER/aca-app:$IMAGE_TAG"
-3. App Configuration / Key Vaultのリソースを作成
-ACAはまだ作成しません。
-terraform apply `
-  "-target=azurerm_app_configuration_key.image_tag" `
-  "-target=azurerm_app_configuration_key.message" `
-  "-target=azurerm_app_configuration_key.secret_message" `
-  "-target=azurerm_key_vault_secret.app_secret_message"
-4. App ConfigurationのimageTagを更新
-$IMAGE_TAG = git rev-parse --short HEAD
-
-az appconfig kv set `
-  --name appcs-aca-appconfig-poc `
-  --key app:imageTag `
-  --label dev `
-  --value $IMAGE_TAG `
-  --auth-mode login `
-  --yes
-5. Key Vault Secretの実値を設定
-az keyvault secret set `
-  --vault-name kv-appconfig-poc20260921 `
-  --name app-secret-message `
-  --value "<secret>"
-Terraform側ではSecret値を ignore_changes しているため、
-実値はTerraform外で管理します。
-6. 残りを通常apply
-terraform apply
-ACAはruntime UAMIのRBAC作成後に作成する必要があるため、
-azurerm_container_app.main に以下を設定しています。
-depends_on = [
-  azurerm_role_assignment.aca_runtime
-]
-動作確認
 terraform plan
-期待値:
-No changes. Your infrastructure matches the configuration.
-ACA確認:
-az containerapp show ...
-App Configuration確認:
-az appconfig kv show ...
-ブラウザでは以下を確認。
-- App VersionがGit SHAと一致
-- App Configurationのメッセージを取得できる
-- Key Vault Secretを取得できる
-注意点
-App Configuration
-app:imageTag はTerraformでキー自体を作成しますが、
-値はCI/CD側で更新します。
-lifecycle {
-  ignore_changes = [value]
-}
-Key Vault
-Secret resourceはTerraformで作りますが、
-実値はTerraform外で更新します。
-lifecycle {
-  ignore_changes = [value]
-}
-ACA作成時のRBAC
-depends_on がない状態では、初回作成時にACR Pullが
-UNAUTHORIZED
-となりRevision作成に失敗しました。
-そのためruntime UAMIのRBAC作成後にACAを作成するようにしています。
-AzureRM Providerのdestroy時エラー
-Container App / Container Apps Environment削除時に、
-Azure上では削除済みでもprovider側のpollingでエラーになることがあります。
-その場合はAzure側でResourceNotFoundを確認したうえで、
-再度 terraform destroy を実行するとstateが追従しました。
+```
 
-これくらい残しておけば、あとでCI/CD化した後も、
+App Configurationのタグ、ACAのイメージタグ、ブラウザーに表示される `App Version` が一致し、`terraform plan` が `No changes` なら、今回の責務分担を確認できます。
 
-```text
-手動ならどうやるか
-↓
-CI/CDではどこを自動化しているか
-の対応が見やすいです。
-特に今回のZenn記事では、**「最初は手動でこの順番を検証し、その後GitHub Actionsへ置き換えた」**という流れがそのまま記事の説明にも使えます。
+## Terraformとデプロイが衝突しないために
+
+- `app:imageTag` はTerraformがキーを作成し、値はデプロイ時に更新します。Terraformは値の変更を `ignore_changes` します。
+- Key Vault SecretもTerraformがリソースを作成し、実値はTerraform外で設定します。実値の変更は `ignore_changes` します。
+- GitHub Actionsが使うRepository Variablesは [`github.tf`](github.tf) で管理します。認証用のクライアントIDもSecretではなく変数です。
+- Terraform stateは現在ローカル保存です。`terraform.tfstate` はGitの管理対象から除外しています。
+
+## やってみて詰まったところ
+
+- **権限付与の繰り返し** — 同じ形のRole Assignmentを何度も書くのはつらいので、ロール名と対象スコープを `locals` にまとめ、`for_each` で作る形にしました。
+- **ACAを作る順番** — 実行用IDへの権限付与とACAを一緒に作ったとき、ACRからのpullが `UNAUTHORIZED` になりました。権限付与を先に終えるよう `depends_on` を追加し、再作成して動作を確認しました。
+- **`terraform destroy` で止まる** — ACAとContainer Apps Environmentの削除中にTerraformがエラーになっても、Azure側では対象が `ResourceNotFound` になっていました。削除処理とproviderの完了確認のタイミングがずれた可能性を疑っていますが、原因はまだ特定できていません。Azure側で消えたことを確認してから `terraform destroy` を再実行すると、stateも追従しました。
+
+作成できたところで終わらせず、削除・再作成、画面表示、App Configurationの値、`terraform plan` が `No changes` になるところまで確認しました。
