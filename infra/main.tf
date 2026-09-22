@@ -123,6 +123,17 @@ resource "azurerm_role_assignment" "aca_runtime" {
   scope                = each.value.scope
 }
 
+## OIDC設定
+resource "azurerm_federated_identity_credential" "github_app_deploy" {
+  user_assigned_identity_id = azurerm_user_assigned_identity.github_app_deploy.id
+  name                      = "github-main"
+  issuer                    = "https://token.actions.githubusercontent.com"
+  subject                   = "repo:SyamGRITio@195118654/azure-containerapps-appconfig-lab@1369020125:ref:refs/heads/mian"
+  audience = [
+    "api://AzureADTokenExchange"
+  ]
+}
+
 
 # Azure Container Apps
 resource "azurerm_container_app_environment" "main" {
