@@ -64,16 +64,13 @@ func main() {
 		log.Fatalf("failed to load App Configuration: %v", err)
 	}
 
-	// 検証用の設定全体のログ出力を停止します。解決済みのSecretも含まれ得るためです。
-	/*
-		raw, err := appConfig.GetBytes(&azureappconfiguration.ConstructionOptions{
-			Separator: ":",
-		})
-		if err != nil {
-			log.Fatalf("failed to get raw config: %v", err)
-		}
-		fmt.Printf("RAW CONFIG: %s\n", string(raw))
-	*/
+	raw, err := appConfig.GetBytes(&azureappconfiguration.ConstructionOptions{
+		Separator: ":",
+	})
+	if err != nil {
+		log.Fatalf("failed to get raw config: %v", err)
+	}
+	fmt.Printf("RAW CONFIG: %s\n", string(raw))
 
 	var config Config
 	if err := appConfig.Unmarshal(
