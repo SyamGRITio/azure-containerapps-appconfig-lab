@@ -47,7 +47,7 @@ jobs:
                   IMAGE="${ACR_NAME}.azurecr.io/aca-app:${IMAGE_TAG}"
 
                   az appconfig kv set \
-                    --name "$APPCONFIG_NAME" \
+                    --endpoint "https://${APPCONFIG_NAME}.azconfig.io" \
                     --key "app:imageTag" \
                     --label dev \
                     --value "$IMAGE_TAG" \
