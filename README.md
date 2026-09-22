@@ -1,37 +1,12 @@
 # Azure Container Appsのアプリ更新をTerraformから分ける検証
 
-GoアプリをAzure Container Apps（ACA）で動かし、設定はAzure App Configuration、SecretはAzure Key Vaultから読み込む検証用リポジトリです。TerraformでAzureの基盤とGitHub Actionsの変数を作り、アプリのイメージ更新だけをGitHub Actionsに任せています。
+Zennの記事で扱う、Azure Container Appsのアプリ更新とTerraformのインフラ管理を分ける検証で、実際に使ったコードを置いています。Terraformの構成、Goアプリ、GitHub Actionsのワークフローと、動作確認の結果を残したリポジトリです。
 
-確かめたかったのは、**アプリを更新した後もTerraformに意図しない差分が出ないか**。イメージのタグをApp Configurationで管理し、デプロイ後の `terraform plan` が `No changes` になるところまで確認しました。
+検証の流れや考えたことは記事で紹介し、ここには構成と確認結果をまとめています。App Configurationでイメージタグを管理し、アプリ更新後の `terraform plan` が `No changes` になるところまで確認しました。
 
 ## 検証構成
 
-```mermaid
-flowchart LR
-  code["app/** を main にpush"] --> actions["GitHub Actions<br/>OIDC / デプロイ用ID"]
-  tf["Terraform<br/>基盤・権限・GitHub変数"]
-  browser["ブラウザー"]
-
-  subgraph azure["Microsoft Azure"]
-    acr["ACR<br/>Goアプリのイメージ"]
-    config["App Configuration<br/>設定値・imageTag・Key Vault参照"]
-    vault["Key Vault<br/>Secretの実値"]
-    aca["Container Apps<br/>Goアプリ / 実行用ID"]
-  end
-
-  tf -. "Repository Variablesを設定" .-> actions
-  tf -. "作成・権限設定" .-> acr
-  tf -. "作成・権限設定" .-> config
-  tf -. "作成・権限設定" .-> vault
-  tf -. "作成・権限設定" .-> aca
-  actions -- "イメージをpush" --> acr
-  actions -- "imageTagを更新" --> config
-  actions -- "イメージを更新" --> aca
-  acr -- "イメージをpull" --> aca
-  aca -- "設定と参照先を読む" --> config
-  aca -- "Secretの実値を読む" --> vault
-  browser -- "HTTPでアクセス" --> aca
-```
+[![GitHub Actionsによるデプロイと2つのマネージドIDの役割](docs/images/github-actions-deploy.png)](docs/images/github-actions-deploy.png)
 
 実行用IDはACAがACRからイメージをpullし、GoアプリがApp ConfigurationとKey Vaultを読むために使います。デプロイ用IDはGitHub ActionsがOIDCでAzureへログインするために使います。Secretの実値はApp Configurationには置きません。
 
@@ -40,8 +15,6 @@ flowchart LR
 - `app/**` の変更を `main` にpushすると、GitHub ActionsがイメージをACRへ送り、App Configurationの `app:imageTag` とACAのイメージを順に更新する。
 - ブラウザーの `App Version`、App Configurationのタグ、ACAのイメージタグが一致する。
 - その後の `terraform plan` は `No changes`。インフラの管理とアプリのデプロイを分けられた。
-
-![検証アプリの画面](app/images/app-screen.png)
 
 ## 検証費用（2026年9月22日時点）
 
@@ -53,12 +26,19 @@ flowchart LR
 
 ![日別の検証費用](docs/images/azure-cost-daily.png)
 
-日別では、9月15日が26.54円でした。ACAを止めていても、[ACR Basicには日額の料金](https://azure.microsoft.com/en-us/pricing/details/container-registry/)がかかります。一方、[ACAのConsumptionプランはレプリカがゼロならリソース使用料が発生しません](https://learn.microsoft.com/en-us/azure/container-apps/scale-app)。この約26円/日は**今回の構成・期間の実測**で、ACAを動かした場合も常に同額という意味ではありません。
+参考までに、9月15日の費用は26.54円でした。ACAを止めていても、[ACR Basicには日額の料金](https://azure.microsoft.com/en-us/pricing/details/container-registry/)がかかります。検証が終わったら、料金が増え続けないよう `terraform destroy` で片付けます。ACA周りは一度で消えないことがあったので、削除後はAzure側とstateも確認します。
 
-## どこを見ればよいか
+## ディレクトリ構成
 
-| 場所 | 内容 |
-| --- | --- |
-| [アプリ](app/README.md) | 画面に出る値と、Goアプリが設定を読む流れ |
-| [インフラ](infra/README.md) | 初回構築の順番、Terraformの管理範囲、詰まったところ |
-| [デプロイ用ワークフロー](.github/workflows/app-deploy.yaml) | OIDCログイン、イメージのpush、App ConfigurationとACAの更新 |
+```text
+.
+├── app/                         # Goアプリ、Dockerfile、画面と値の流れ
+├── infra/                       # Azure・GitHubのTerraformと構築メモ
+├── .github/workflows/
+│   └── app-deploy.yaml           # アプリのビルドとデプロイ
+├── docs/images/                  # このREADMEで使う費用の画像
+├── README.md
+└── LICENSE
+```
+
+アプリの動きは[app/README.md](app/README.md)、初回構築と動作確認は[infra/README.md](infra/README.md)にまとめています。
