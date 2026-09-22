@@ -128,7 +128,7 @@ resource "azurerm_federated_identity_credential" "github_app_deploy" {
   user_assigned_identity_id = azurerm_user_assigned_identity.github_app_deploy.id
   name                      = "github-main"
   issuer                    = "https://token.actions.githubusercontent.com"
-  subject                   = "repo:SyamGRITio@195118654/azure-containerapps-appconfig-lab@1369020125:ref:refs/heads/mian"
+  subject                   = "repo:SyamGRITio@195118654/azure-containerapps-appconfig-lab@1369020125:ref:refs/heads/main"
   audience = [
     "api://AzureADTokenExchange"
   ]
