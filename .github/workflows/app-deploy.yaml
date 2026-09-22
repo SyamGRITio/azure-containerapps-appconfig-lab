@@ -33,3 +33,30 @@ jobs:
                   docker build -t "$IMAGE" ./app
                   az acr login --name "$ACR_NAME"
                   docker push "$IMAGE"
+
+            - name: Update App Configuration and Container App
+              env:
+                  ACR_NAME: ${{ vars.ACR_NAME }}
+                  APPCONFIG_NAME: ${{ vars.APPCONFIG_NAME }}
+                  CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
+                  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+              run: |
+                  set -euo pipefail
+                  IMAGE_TAG="${GITHUB_SHA:0:7}"
+                  IMAGE="${ACR_NAME}.azurecr.io/aca-app:${IMAGE_TAG}"
+
+                  az appconfig kv set \
+                    --name "$APPCONFIG_NAME" \
+                    --key "app:imageTag" \
+                    --label dev \
+                    --value "$IMAGE_TAG" \
+                    --auth-mode login \
+                    --yes \
+                    --output none
+
+                  az containerapp update \
+                    --name "$CONTAINER_APP_NAME" \
+                    --resource-group "$AZURE_RESOURCE_GROUP" \
+                    --image "$IMAGE" \
+                    --output none
