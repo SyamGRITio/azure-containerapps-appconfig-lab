@@ -10,7 +10,7 @@ resource "azurerm_resource_group" "main" {
 # ACR,APPCS,KV
 ## Azure Container Registry
 resource "azurerm_container_registry" "main" {
-  name                                         = "acrappcofigpoc${local.date_suffix}"
+  name                                         = "acrappcofigpoc${local.resource_name_suffix}"
   resource_group_name                          = azurerm_resource_group.main.name
   location                                     = local.location
   sku                                          = "Basic"
@@ -67,7 +67,7 @@ resource "azurerm_app_configuration_key" "message" {
 
 ## keyvault
 resource "azurerm_key_vault" "main" {
-  name                          = "kv-appconfig-poc${local.date_suffix}"
+  name                          = "kv-appconfig-poc${local.resource_name_suffix}"
   location                      = local.location
   resource_group_name           = azurerm_resource_group.main.name
   tenant_id                     = data.azurerm_client_config.current.tenant_id

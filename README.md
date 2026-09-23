@@ -1,6 +1,6 @@
 # Azure Container Appsのアプリ更新をTerraformから分ける検証
 
-Zennの記事で扱う、Azure Container Appsのアプリ更新とTerraformのインフラ管理を分ける検証で、実際に使ったコードを置いています。Terraformの構成、Goアプリ、GitHub Actionsのワークフローと、動作確認の結果を残したリポジトリです。
+Zennの記事で扱う、Azure Container Appsのアプリ更新とIaCのインフラ管理を分ける検証で、実際に使ったコードを置いています。Terraform版とBicep版の構成、Goアプリ、GitHub Actionsのワークフローと、動作確認の結果を残したリポジトリです。
 
 検証の流れや考えたことは記事で紹介し、ここには構成と確認結果をまとめています。App Configurationでイメージタグを管理し、アプリ更新後の `terraform plan` が `No changes` になるところまで確認しました。
 
@@ -33,7 +33,10 @@ Zennの記事で扱う、Azure Container Appsのアプリ更新とTerraformの�
 ```text
 .
 ├── app/                         # Goアプリ、Dockerfile、画面と値の流れ
-├── infra/                       # Azure・GitHubのTerraformと構築メモ
+├── infra/
+│   ├── terraform/               # Terraform版
+│   ├── bicep/                   # Bicep版
+│   └── README.md                # 2つの実装の使い分け
 ├── .github/workflows/
 │   └── app-deploy.yaml           # アプリのビルドとデプロイ
 ├── docs/images/                  # このREADMEで使う費用の画像

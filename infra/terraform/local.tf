@@ -4,16 +4,8 @@ locals {
   appconfig_label     = "dev"
 
   common_tags = {
-    ManagedBy = "Terraform"
+    ManagedBy = "IaC"
   }
-}
-
-resource "time_static" "created" {}
-
-locals {
-  date_suffix = formatdate("YYYYMMDD", time_static.created.rfc3339)
-}
-
-locals {
+  resource_name_suffix   = "20260921"
   github_repository_name = "azure-containerapps-appconfig-lab"
 }

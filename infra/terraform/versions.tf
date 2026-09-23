@@ -7,11 +7,6 @@ terraform {
       version = "~> 5.3"
     }
 
-    time = {
-      source  = "hashicorp/time"
-      version = "~> 0.13"
-    }
-
     github = {
       source  = "integrations/github"
       version = "~> 6.13"
