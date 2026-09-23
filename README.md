@@ -1,8 +1,12 @@
-# Azure Container Appsのアプリ更新をTerraformから分ける検証
+# Azure Container Appsのアプリ更新をIaCから分ける検証
 
-Zennの記事で扱う、Azure Container Appsのアプリ更新とIaCのインフラ管理を分ける検証で、実際に使ったコードを置いています。Terraform版とBicep版の構成、Goアプリ、GitHub Actionsのワークフローと、動作確認の結果を残したリポジトリです。
+Azure Container Apps（ACA）のアプリ更新を、TerraformやBicepによるインフラ管理から分ける方法を試したリポジトリです。App ConfigurationをアプリのCDとIaCの受け渡し場所にできるか、実際にリソースを作って確認しました。
 
-検証の流れや考えたことは記事で紹介し、ここには構成と確認結果をまとめています。App Configurationでイメージタグを管理し、アプリ更新後の `terraform plan` が `No changes` になるところまで確認しました。
+検証の背景、App Configurationを使わない方法との比較、TerraformとBicepでの違いは、次の記事にまとめています。
+
+> [Azure Container Appsのイメージ更新をTerraformから分離してみた。App Configurationは必要か？](https://zenn.dev/gritio28tech/articles/e412826c92b6b8)
+
+このリポジトリには、Terraform版とBicep版の構成、確認用のGoアプリ、GitHub Actionsのワークフローを置いています。
 
 ## 検証構成
 
@@ -14,7 +18,10 @@ Zennの記事で扱う、Azure Container Appsのアプリ更新とIaCのイン�
 
 - `app/**` の変更を `main` にpushすると、GitHub ActionsがイメージをACRへ送り、App Configurationの `app:imageTag` とACAのイメージを順に更新する。
 - ブラウザーの `App Version`、App Configurationのタグ、ACAのイメージタグが一致する。
-- その後の `terraform plan` は `No changes`。インフラの管理とアプリのデプロイを分けられた。
+- Terraformでは、CDが更新する `app:imageTag` の値を `ignore_changes` にすることで、その後の `terraform plan` が `No changes` になる。
+- ACAはコンテナの `image` だけを `ignore_changes` にできるため、Terraform版ではApp Configurationを使わずに分離する方法もある。
+- Bicepには `ignore_changes` がない。App Configurationのキーを `existing` で参照すると、CDが更新したタグを戻さずに再適用できる。
+- Bicepの再適用では不要なRevisionは作られなかった。ただし、`what-if`ではApp Configurationの参照値を解決できず、実際には同じ値でもACAが変更対象として表示される。
 
 ## 検証費用（2026年9月22日時点）
 
