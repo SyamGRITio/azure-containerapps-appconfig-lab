@@ -10,7 +10,7 @@ Azure Container Apps（ACA）のアプリ更新を、TerraformやBicepによる�
 
 ## 検証構成
 
-[![GitHub Actionsによるデプロイと2つのマネージドIDの役割](docs/images/github-actions-deploy.png)](docs/images/github-actions-deploy.png)
+[![GitHub Actionsによるデプロイと2つのマネージドIDの役割](docs/images/インフラ構成図.png)](docs/images/インフラ構成図.png)
 
 実行用IDはACAがACRからイメージをpullし、GoアプリがApp ConfigurationとKey Vaultを読むために使います。デプロイ用IDはGitHub ActionsがOIDCでAzureへログインするために使います。Secretの実値はApp Configurationには置きません。
 
